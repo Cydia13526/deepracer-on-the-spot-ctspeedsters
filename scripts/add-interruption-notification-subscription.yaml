@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Add email subscription to SNS Topic for notifications
+
+Parameters:
+  ResourcesStackName:
+    Type: String
+  EmailAddress:
+    Type: String
+
+Resources:
+
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !Ref EmailAddress
+      Protocol: email
+      TopicArn:
+        !ImportValue
+        'Fn::Sub': '${ResourcesStackName}-InterruptionNotification'

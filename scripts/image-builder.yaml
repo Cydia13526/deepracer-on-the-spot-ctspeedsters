@@ -1,0 +1,508 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create Image Builder Pipeline to bake AMIs for DeepRacer on the Spot
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - AWS::LanguageExtensions
+Parameters:
+  BuildInstanceType:
+    Type: CommaDelimitedList
+    Default: g4dn.2xlarge, g5.2xlarge, g6.2xlarge
+    Description: >-
+      Comma-delimited list of one or more instance types to select from when building
+      the image. Image Builder will select a type based on availability.
+  ResourcesStackName:
+    Type: String
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      Comment: Role to be used by instance during image build.
+    Properties:
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/EC2InstanceProfileForImageBuilder'
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds'
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSNSFullAccess'
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonEC2FullAccess'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+        Version: '2012-10-17'
+      Path: /executionServiceEC2Role/
+  ImageBuilderRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      Comment: Role to be used by instance during image build.
+    Properties:
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/EC2ImageBuilderLifecycleExecutionPolicy'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - imagebuilder.amazonaws.com
+        Version: '2012-10-17'
+      Path: /executionServiceImageBuilderRole/
+  InstanceRoleLoggingPolicy:
+    Type: AWS::IAM::Policy
+    Metadata:
+      Comment: Allows the instance to save log files to an S3 bucket.
+    Properties:
+      PolicyName: ImageBuilderLogBucketPolicy
+      Roles:
+        - !Ref 'InstanceRole'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - s3:PutObject
+            Effect: Allow
+            Resource:
+              - !Sub
+                - arn:${AWS::Partition}:s3:::${BUCKET}/*
+                - BUCKET: !ImportValue
+                    Fn::Sub: ${ResourcesStackName}-Bucket
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /executionServiceEC2Role/
+      Roles:
+        - !Ref 'InstanceRole'
+  UbuntuServerImageInfrastructureConfiguration:
+    Type: AWS::ImageBuilder::InfrastructureConfiguration
+    Properties:
+      Name: !Sub 'UbuntuServer22-Image-Infrastructure-Configuration-${AWS::StackName}'
+      InstanceProfileName: !Ref 'InstanceProfile'
+      InstanceTypes: !Ref 'BuildInstanceType'
+      InstanceMetadataOptions:
+        HttpTokens: optional
+        HttpPutResponseHopLimit: 2
+      Logging:
+        S3Logs:
+          S3BucketName: !ImportValue
+            Fn::Sub: ${ResourcesStackName}-Bucket
+          S3KeyPrefix: !Join
+            - '-'
+            - - imagebuilder
+              - !Ref 'AWS::StackName'
+      SecurityGroupIds:
+        - !ImportValue
+          Fn::Sub: ${ResourcesStackName}-SecurityGroup
+      SnsTopicArn: !Ref 'ImageBuilderSNSTopic'
+  PreReqs:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'PreReqs-${AWS::StackName}'
+      Version: '0.0.3'
+      Description: Pre-requisites.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: PreReqs
+        description: Installs pre-reqs
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: PreReqs
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      sudo apt-get update
+                      sudo apt install unzip -y
+                      curl https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip
+                      unzip awscliv2.zip
+                      sudo ./aws/install
+                      rm aws -rf
+                      rm awscliv2.zip -f
+                      sudo apt-get -y install python3-pip binutils jq zip
+                      sudo pip3 install --upgrade awscli
+                      sudo apt install nvtop -y
+  InstallCFNInitComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'CFNInit-${AWS::StackName}'
+      Version: '0.0.4'
+      Description: Install the latest CFNInit.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: InstallCFNInit
+        description: Downloads and Installs cfn init
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: InstallFolder
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - echo "$HOME/install"
+              - name: CreateInstallFolder
+                action: CreateFolder
+                inputs:
+                  - path: '{{ build.InstallFolder.outputs.stdout }}'
+              - name: CFNInit
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - "cd {{ build.InstallFolder.outputs.stdout }}"
+                    - "sudo curl -o awscfnboot.tar.gz https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz"
+                    - "sudo tar -zxf awscfnboot.tar.gz"
+                    - "sudo python3 -m pip install ./aws-cfn-bootstrap-2.0"
+              - name: Cleanup
+                action: DeleteFolder
+                inputs:
+                  - path: '{{ build.InstallFolder.outputs.stdout }}'
+                    force: true
+  InstallDeepRacerComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'DeepRacer-${AWS::StackName}'
+      Version: '0.0.11'
+      Description: Install the latest DeepRacer config.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: InstallDeepRacer
+        description: Downloads and Installs deepracer community config
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: CloneCommunityRepo
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - "sudo -u ubuntu -i bash -c 'cd /home/ubuntu && git clone https://github.com/aws-deepracer-community/deepracer-for-cloud.git'"
+                    - "pip3 install deepracer-utils"
+                    - "python3 -m deepracer install-cli"
+              - name: BuildFromCommunityRepo
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - "sudo -u ubuntu -i bash -c 'cd /home/ubuntu/deepracer-for-cloud && ./bin/prepare.sh'"
+              - name: Reboot
+                action: Reboot
+                onFailure: Abort
+                maxAttempts: 2
+                inputs:
+                  delaySeconds: 60
+              - name: init
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - "sudo -u ubuntu -i bash -c 'cd /home/ubuntu/deepracer-for-cloud && ./bin/init.sh -c aws -a gpu'"
+                    - "sudo -u ubuntu -i bash -c 'cd /home/ubuntu/deepracer-for-cloud && source bin/activate.sh'"
+  CreateLogsComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'CreateLogScript-${AWS::StackName}'
+      Version: '0.0.2'
+      Description: Create Logs script.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: CreateLogs
+        description: logs to s3
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: CopyLogs
+                action: CreateFile
+                inputs:
+                  - path: /home/ubuntu/bin/create_logs.sh
+                    permissions: 775
+                    owner: ubuntu
+                    group: ubuntu
+                    content: |
+                        #!/bin/bash
+                        cd $DR_DIR/data/logs
+                        rm *.log *.zip
+                        echo hello;echo hello
+                        for name in $(docker ps --format \{\{.Names}\}); do
+                            docker logs ${name} >& ${name}.log
+                        done
+                        zip robomaker_log deepracer-0_robomaker.1.*.log
+                        aws s3 cp robomaker_log.zip  s3://$DR_LOGS_COPY_S3_BUCKET/
+  InstallDeepRacerDockerImagesScriptComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'DeepRacerDockerImagesScript-${AWS::StackName}'
+      Version: '0.0.2'
+      Description: Install the latest DeepRacer docker images script.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: InstallDeepRacerDockerImages
+        description: Downloads and Installs deepracer docker images script
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: PullDeepracerDockerImagesScript
+                action: CreateFile
+                inputs:
+                  - path: /home/ubuntu/bin/pull-docker-images.sh
+                    permissions: 775
+                    owner: ubuntu
+                    group: ubuntu
+                    content: |
+                        REGISTRY=https://index.docker.io/v2
+                        REGISTRY_AUTH=https://auth.docker.io
+                        REGISTRY_SERVICE=registry.docker.io
+                        IMAGE_NAME=""
+                        DOCKER_BIN=docker
+                        TAGS_FILTER=""
+                        VERBOSE=0
+                        TAGS_LIMIT=1
+                        ignore_404=0
+
+                        OPTIND=1
+
+                        while getopts "n:f:v" opt; do
+                            case "$opt" in
+                            n)  IMAGE_NAME="$OPTARG"
+                                ;;
+                            f)  TAGS_FILTER="$OPTARG"
+                                ;;
+                            v)  VERBOSE=1
+                                ;;
+                            esac
+                        done
+
+                        shift $((OPTIND-1))
+
+                        [ "${1:-}" = "--" ] && shift
+
+                        if [ -z $IMAGE_NAME ]; then
+                          echo Requires Image Name
+                          exit 1;
+                        else
+                          if [[ $VERBOSE -eq 1 ]]; then
+                             echo Using IMAGE_NAME: $IMAGE_NAME
+                          fi
+                        fi
+
+                        function do_curl_get () {
+                          local URL="$1"
+                          shift
+                          local array=("$@")
+                          HTTP_RESPONSE="$(curl -sSL --write-out "HTTPSTATUS:%{http_code}" \
+                            -H "Content-Type: application/json;charset=UTF-8" \
+                            "${array[@]}" \
+                            -X GET "$URL")"
+                          # echo $HTTP_RESPONSE
+                          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
+                          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
+                          # Check that the http status is 200
+                          if [[ "$HTTP_STATUS" -ne 200 ]]; then
+                            if [[ "$ignore_404" -eq 0 ]]; then
+                              if [[ "$VERBOSE" -eq 0 ]]; then
+                                echo -e "\\nError $HTTP_STATUS from: $URL\\n"
+                              else
+                                echo -e "\\nError $HTTP_STATUS from: $URL\\nHTTP_BODY: $HTTP_BODY\\n"
+                              fi
+                            fi
+                          fi
+                        }
+
+                        #  Get AUTH token
+                        # This cannot be: ("")
+                        CURL_AUTH=()
+                        CURL_URL="$REGISTRY_AUTH/token?service=${REGISTRY_SERVICE##*(//)}&scope=repository:$IMAGE_NAME:pull"
+                        do_curl_get "$CURL_URL" "${CURL_AUTH[@]}"
+                        AUTH=$(echo "$HTTP_BODY" | jq --raw-output .token)
+
+                        # Get Tags
+                        CURL_AUTH=( -H "Authorization: Bearer $AUTH" )
+                        CURL_URL="$REGISTRY/$IMAGE_NAME/tags/list"
+                        do_curl_get "$CURL_URL" "${CURL_AUTH[@]}"
+                        TAGS_CURL=$(echo "$HTTP_BODY")
+                        TAGS_temp=$(echo "$TAGS_CURL"|jq --arg TAGS_FILTER "$TAGS_FILTER" -r '.tags[]|select(.|endswith($TAGS_FILTER))'|grep -vi windows|sort -r --version-sort)
+
+                        TAG=$(echo "$TAGS_temp"|sed -n 1,"$TAGS_LIMIT"p)
+
+                        docker pull $IMAGE_NAME:$TAG
+  ExpandRootVolumeComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'ExpandRootVolume-${AWS::StackName}'
+      Version: '0.0.6'
+      Description: Expand root volume.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: ExpandRootVolume
+        description: Expands root volume
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: ExpandRootVolume
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - |
+                      id=$(curl http://169.254.169.254/latest/meta-data/instance-id)
+                      vol_id=$(aws ec2 describe-instances --region $(curl http://169.254.169.254/latest/meta-data/placement/region) --instance-ids $id --query 'Reservations[0].Instances[0].BlockDeviceMappings[0].Ebs.VolumeId' --output text)
+                      aws ec2 modify-volume --size 40 --volume-id $vol_id --region $(curl http://169.254.169.254/latest/meta-data/placement/region)
+  PullDeepracerDockerImagesComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'PullDeepracerDockerImages-${AWS::StackName}'
+      Version: '0.0.6'
+      Description: Pull newest deepracer docker images.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: PullDeepracerDockerImages
+        description: Pull deepracer docker images
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: PullDeepracerDockerImages
+                action: ExecuteBash
+                inputs:
+                  commands:
+                    - "bash -c '/home/ubuntu/bin/pull-docker-images.sh -n awsdeepracercommunity/deepracer-simapp -v -f -gpu'"
+                    - "bash -c '/home/ubuntu/bin/pull-docker-images.sh -n awsdeepracercommunity/deepracer-simapp -v -f -cpu'"
+                    - "bash -c '/home/ubuntu/bin/pull-docker-images.sh -n awsdeepracercommunity/deepracer-analysis -v -f cpu'"
+  SafeTerminationComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: !Sub 'SafeTermination-${AWS::StackName}'
+      Version: '0.0.3'
+      Description: Install script to terminate training and upload model.
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: SafeTermination
+        description: terminates training
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: SafeTermination
+                action: CreateFile
+                inputs:
+                  - path: /home/ubuntu/bin/safe_termination.sh
+                    permissions: 775
+                    owner: ubuntu
+                    group: ubuntu
+                    content: |
+                      #!/bin/bash
+                      touch /home/ubuntu/bin/termination.started
+                      . /home/ubuntu/deepracer-for-cloud/bin/activate.sh
+                      source /etc/profile.d/my_bucket.sh
+                      # to avoid upload conflict, check if start_training script loop started dr-upload-model within last 30 seconds
+                      start_training_uploading=$(find /home/ubuntu/bin/uploading_best_model.timestamp -mmin -0.5 -type f -print | wc -l)
+                      if [[ $start_training_uploading -ge 1 ]];then
+                        sleep 30
+                      fi
+                      dr-upload-model -bf
+                      . /home/ubuntu/deepracer-for-cloud/import_model.sh
+                      dr-stop-training
+  DistributionConfiguration:
+    Type: 'AWS::ImageBuilder::DistributionConfiguration'
+    Properties:
+      Name: !Sub 'DistributionConfiguration-${AWS::StackName}'
+      Distributions:
+        - Region: !ImportValue
+            Fn::Sub: ${ResourcesStackName}-Region
+          AmiDistributionConfiguration:
+            Name: !Join
+              - '-'
+              - - 'deepracer-ami-dist-config'
+                - '{{ imagebuilder:buildDate }}'
+            AmiTags:
+              Name: DeepRacer
+            LaunchPermissionConfiguration:
+              UserGroups:
+                - all
+  UbuntuServerForDeepRacerImageRecipe:
+    Type: AWS::ImageBuilder::ImageRecipe
+    Properties:
+      Name: !Sub 'UbuntuServerForDeepRacer-${AWS::StackName}'
+      Version: '0.0.17'
+      ParentImage: !Sub 'arn:${AWS::Partition}:imagebuilder:${AWS::Region}:aws:image/ubuntu-server-22-lts-x86/x.x.x'
+      Components:
+        - ComponentArn: !Ref 'PreReqs'
+        - ComponentArn: !Ref 'CreateLogsComponent'
+        - ComponentArn: !Ref 'SafeTerminationComponent'
+        - ComponentArn: !Ref 'ExpandRootVolumeComponent'
+        - ComponentArn: !Ref 'InstallDeepRacerDockerImagesScriptComponent'
+        - ComponentArn: !Ref 'InstallCFNInitComponent'
+        - ComponentArn: !Ref 'InstallDeepRacerComponent'
+        - ComponentArn: !Ref 'PullDeepracerDockerImagesComponent'
+  UbuntuServerImagePipeline:
+    Type: AWS::ImageBuilder::ImagePipeline
+    Properties:
+      Description: DeepRacer image build pipeline
+      ImageRecipeArn: !Ref 'UbuntuServerForDeepRacerImageRecipe'
+      InfrastructureConfigurationArn: !Ref 'UbuntuServerImageInfrastructureConfiguration'
+      DistributionConfigurationArn: !Ref 'DistributionConfiguration'
+      Name: !Sub 'DeepRacerImageBuildPipeline-${AWS::StackName}'
+      Tags:
+        BuildStack: !Sub '${AWS::StackName}'
+        Name: DeepRacer
+      Schedule:
+        PipelineExecutionStartCondition: EXPRESSION_MATCH_ONLY
+        ScheduleExpression: cron(0 0 1 * ? *)
+  DistributionLifecycle:
+    Type: AWS::ImageBuilder::LifecyclePolicy
+    Properties:
+      Description: Pipeline lifecycle to clean up old images
+      ExecutionRole: !GetAtt ['ImageBuilderRole', "Arn"]
+      Name: DeleteOldAMIs
+      PolicyDetails: 
+        - Action: 
+            Type: DELETE
+            IncludeResources: 
+              Amis: True
+              Snapshots: True
+          Filter: 
+            Type: COUNT
+            Value: 1
+      ResourceSelection:
+        Recipes:
+          - Name: !GetAtt ['UbuntuServerForDeepRacerImageRecipe', "Name"]
+            SemanticVersion: !Select [2, !Split ['/', !Ref 'UbuntuServerForDeepRacerImageRecipe']]
+      ResourceType: AMI_IMAGE
+      Status: ENABLED
+      Tags: 
+        Name: DeleteOldAMIs
+  ImageBuilderSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Image Builder
+  TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Sid: AllowServices
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - sns:Publish
+              - sns:Subscribe
+            Resource: '*'
+      Topics:
+        - !Ref 'ImageBuilderSNSTopic'
+  ImageBuilderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+      LogGroupName: !Sub '/aws/imagebuilder/UbuntuServerForDeepRacer-${AWS::StackName}'
