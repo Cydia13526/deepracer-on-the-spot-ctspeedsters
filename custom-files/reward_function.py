@@ -1,97 +1,63 @@
 import math
 
-class Reward:
-    def __init__(self, verbose=False):
-        self.first_racingpoint_index = None
-        self.verbose = verbose
+def reward_function(params):
+    '''
+    Optimized for Rogue Circuit: Penalizes sharp turns, rewards center-line alignment, and adjusts speed dynamically.
+    '''
+    # Input parameters
+    track_width = params['track_width']
+    distance_from_center = params['distance_from_center']
+    steering_angle = abs(params['steering_angle'])
+    speed = params['speed']
+    progress = params['progress']
+    all_wheels_on_track = params['all_wheels_on_track']
+    waypoints = params['waypoints']
+    closest_waypoints = params['closest_waypoints']
+    heading = params['heading']
 
-    def reward_function(self, params):
-        # Import package (needed for heading)
-        import math
+    # Constants
+    SPEED_THRESHOLD_STRAIGHT = 3.0  # m/s (fast on straights)
+    SPEED_THRESHOLD_CURVE = 1.5     # m/s (slow on curves)
+    STEERING_THRESHOLD = 15.0        # degrees (penalize sharp turns)
 
-        ################## HELPER FUNCTIONS ###################
-        def dist_2_points(x1, x2, y1, y2):
-            return abs(abs(x1-x2)**2 + abs(y1-y2)**2)**0.5
+    # Reward baseline
+    reward = 1e-3  # Minimal reward by default
 
-        def closest_2_racing_points_index(racing_coords, car_coords):
-            distances = []
-            for i in range(len(racing_coords)):
-                distance = dist_2_points(x1=racing_coords[i][0], x2=car_coords[0],
-                                         y1=racing_coords[i][1], y2=car_coords[1])
-                distances.append(distance)
+    # 1. Reward for staying on track
+    if all_wheels_on_track:
+        reward += 1.0
 
-            closest_index = distances.index(min(distances))
-            distances_no_closest = distances.copy()
-            distances_no_closest[closest_index] = 999
-            second_closest_index = distances_no_closest.index(min(distances_no_closest))
+    # 2. Reward for proximity to center line (5-tier system)
+    markers = [0.1, 0.25, 0.5]  # Fractions of track width
+    if distance_from_center <= markers[0] * track_width:
+        reward += 1.0
+    elif distance_from_center <= markers[1] * track_width:
+        reward += 0.5
+    elif distance_from_center <= markers[2] * track_width:
+        reward += 0.1
+    else:
+        reward = 1e-3  # Near edge/crash
 
-            return [closest_index, second_closest_index]
+    # 3. Penalize excessive steering (reduces zig-zag)
+    if steering_angle > STEERING_THRESHOLD:
+        reward *= 0.7  # 30% penalty for sharp turns
 
-        def dist_to_racing_line(closest_coords, second_closest_coords, car_coords):
-            a = abs(dist_2_points(x1=closest_coords[0],
-                                  x2=second_closest_coords[0],
-                                  y1=closest_coords[1],
-                                  y2=second_closest_coords[1]))
+    # 4. Dynamic speed adjustment based on track curvature
+    next_point = waypoints[closest_waypoints[1]]
+    prev_point = waypoints[closest_waypoints[0]]
+    track_direction = math.degrees(math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0]))
+    direction_diff = abs(track_direction - heading)
 
-            b = abs(dist_2_points(x1=car_coords[0],
-                                  x2=closest_coords[0],
-                                  y1=car_coords[1],
-                                  y2=closest_coords[1]))
-            c = abs(dist_2_points(x1=car_coords[0],
-                                  x2=second_closest_coords[0],
-                                  y1=car_coords[1],
-                                  y2=second_closest_coords[1]))
+    # Slow down on curves, speed up on straights
+    if direction_diff > 10:  # Curve detected
+        if speed >= SPEED_THRESHOLD_CURVE:
+            reward *= 0.8  # Penalize high speed in curves
+    else:  # Straight section
+        if speed >= SPEED_THRESHOLD_STRAIGHT:
+            reward += 0.5  # Bonus for high speed on straights
 
-            try:
-                distance = abs(-(a**4) + 2*(a**2)*(b**2) + 2*(a**2)*(c**2) -
-                               (b**4) + 2*(b**2)*(c**2) - (c**4))**0.5 / (2*a)
-            except:
-                distance = b
+    # 5. Bonus for lap completion
+    if progress == 100:
+        reward += 100
 
-            return distance
-
-        def next_prev_racing_point(closest_coords, second_closest_coords, car_coords, heading):
-            heading_vector = [math.cos(math.radians(heading)), math.sin(math.radians(heading))]
-            new_car_coords = [car_coords[0]+heading_vector[0],
-                              car_coords[1]+heading_vector[1]]
-
-            distance_closest_coords_new = dist_2_points(x1=new_car_coords[0],
-                                                        x2=closest_coords[0],
-                                                        y1=new_car_coords[1],
-                                                        y2=closest_coords[1])
-            distance_second_closest_coords_new = dist_2_points(x1=new_car_coords[0],
-                                                               x2=second_closest_coords[0],
-                                                               y1=new_car_coords[1],
-                                                               y2=second_closest_coords[1])
-
-            if distance_closest_coords_new <= distance_second_closest_coords_new:
-                next_point_coords = closest_coords
-                prev_point_coords = second_closest_coords
-            else:
-                next_point_coords = second_closest_coords
-                prev_point_coords = closest_coords
-
-            return [next_point_coords, prev_point_coords]
-
-        def racing_direction_diff(closest_coords, second_closest_coords, car_coords, heading):
-            next_point, prev_point = next_prev_racing_point(closest_coords,
-                                                            second_closest_coords,
-                                                            car_coords,
-                                                            heading)
-
-            track_direction = math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0])
-            track_direction = math.degrees(track_direction)
-
-            direction_diff = abs(track_direction - heading)
-            if direction_diff > 180:
-                direction_diff = 360 - direction_diff
-
-            return direction_diff
-
-        def indexes_cyclical(start, end, array_len):
-            if end < start:
-                end += array_len
-            return [index % array_len for index in range(start, end)]
-
-        def projected_time(first_index, closest_index, step_count, times_list):
-            current_actual_time = (step_count-1) / 15
+    return float(reward)
