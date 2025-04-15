@@ -352,62 +352,62 @@
         },
         {
             "steering_angle": -10.2018,
-            "speed": 2.3182,
+            "speed": 1.7182,
             "index": 70
         },
         {
             "steering_angle": 11.9312,
-            "speed": 2.3437,
+            "speed": 1.7437,
             "index": 71
         },
         {
             "steering_angle": 4.6191,
-            "speed": 2.1134,
+            "speed": 1.5134,
             "index": 72
         },
         {
             "steering_angle": 13.3423,
-            "speed": 2.1135,
+            "speed": 1.5135,
             "index": 73
         },
         {
             "steering_angle": -17.2732,
-            "speed": 3.5768,
+            "speed": 1.9768,
             "index": 74
         },
         {
             "steering_angle": -1.7327,
-            "speed": 2.3429,
+            "speed": 1.7429,
             "index": 75
         },
         {
             "steering_angle": -4.9291,
-            "speed": 2.1105,
+            "speed": 1.5105,
             "index": 76
         },
         {
             "steering_angle": 21.9092,
-            "speed": 2.2563,
+            "speed": 1.6563,
             "index": 77
         },
         {
             "steering_angle": 8.8679,
-            "speed": 3.5796,
+            "speed": 1.9796,
             "index": 78
         },
         {
             "steering_angle": 4.417,
-            "speed": 2.3433,
+            "speed": 1.7433,
             "index": 79
         },
         {
             "steering_angle": 30,
-            "speed": 2.1,
+            "speed": 1.5,
             "index": 80
         },
         {
             "steering_angle": -30,
-            "speed": 2.1,
+            "speed": 1.5,
             "index": 81
         }
     ],
