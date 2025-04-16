@@ -2,7 +2,7 @@ import math
 
 def reward_function(params):
     '''
-    Optimized for Rogue Circuit: Penalizes sharp turns, rewards center-line alignment, and adjusts speed dynamically.
+    Strictly prevents off-track driving while optimizing speed and steering for Rogue Circuit.
     '''
     # Input parameters
     track_width = params['track_width']
@@ -14,50 +14,53 @@ def reward_function(params):
     waypoints = params['waypoints']
     closest_waypoints = params['closest_waypoints']
     heading = params['heading']
+    is_offtrack = params['is_offtrack']  # New: Direct off-track flag
 
     # Constants
-    SPEED_THRESHOLD_STRAIGHT = 3.0  # m/s (fast on straights)
-    SPEED_THRESHOLD_CURVE = 1.5     # m/s (slow on curves)
-    STEERING_THRESHOLD = 15.0        # degrees (penalize sharp turns)
+    SPEED_THRESHOLD_STRAIGHT = 3.5  # m/s (fast on straights)
+    SPEED_THRESHOLD_CURVE = 2.0     # m/s (slow on curves)
+    STEERING_THRESHOLD = 20.0        # degrees (penalize sharp turns)
+    MAX_DISTANCE_FROM_CENTER = 0.5 * track_width  # Hard limit (50% of track width)
 
-    # Reward baseline
-    reward = 1e-3  # Minimal reward by default
+    # --- STRICT OFF-TRACK PENALTY ---
+    if is_offtrack or not all_wheels_on_track:
+        return 1e-5  # Near-zero reward if off-track
 
-    # 1. Reward for staying on track
-    if all_wheels_on_track:
-        reward += 1.0
+    # --- REWARD STRUCTURE ---
+    reward = 1e-3  # Minimal baseline reward
 
-    # 2. Reward for proximity to center line (5-tier system)
-    markers = [0.1, 0.25, 0.5]  # Fractions of track width
-    if distance_from_center <= markers[0] * track_width:
-        reward += 1.0
-    elif distance_from_center <= markers[1] * track_width:
-        reward += 0.5
-    elif distance_from_center <= markers[2] * track_width:
-        reward += 0.1
+    # 1. **Center-line alignment (strict)**
+    if distance_from_center <= 0.1 * track_width:
+        reward += 1.0  # Max reward for perfect center
+    elif distance_from_center <= 0.25 * track_width:
+        reward += 0.5  # Good, but not perfect
+    elif distance_from_center <= MAX_DISTANCE_FROM_CENTER:
+        reward += 0.1  # Acceptable, but not ideal
     else:
-        reward = 1e-3  # Near edge/crash
+        return 1e-5  # Too close to edge (effectively off-track)
 
-    # 3. Penalize excessive steering (reduces zig-zag)
-    if steering_angle > STEERING_THRESHOLD:
-        reward *= 0.7  # 30% penalty for sharp turns
-
-    # 4. Dynamic speed adjustment based on track curvature
+    # 2. **Speed optimization (curve vs. straight)**
     next_point = waypoints[closest_waypoints[1]]
     prev_point = waypoints[closest_waypoints[0]]
     track_direction = math.degrees(math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0]))
     direction_diff = abs(track_direction - heading)
 
     # Slow down on curves, speed up on straights
-    if direction_diff > 10:  # Curve detected
-        if speed >= SPEED_THRESHOLD_CURVE:
-            reward *= 0.8  # Penalize high speed in curves
+    if direction_diff > 15:  # Sharp curve
+        if speed > SPEED_THRESHOLD_CURVE:
+            reward *= 0.5  # Heavy penalty for speeding in curves
+        else:
+            reward += 0.5  # Bonus for correct slow speed
     else:  # Straight section
-        if speed >= SPEED_THRESHOLD_STRAIGHT:
-            reward += 0.5  # Bonus for high speed on straights
+        if speed > SPEED_THRESHOLD_STRAIGHT:
+            reward += 1.0  # Max bonus for high speed on straights
 
-    # 5. Bonus for lap completion
+    # 3. **Steering penalty (prevents zig-zag)**
+    if steering_angle > STEERING_THRESHOLD:
+        reward *= 0.5  # 50% penalty for aggressive steering
+
+    # 4. **Lap completion bonus (huge reward)**
     if progress == 100:
-        reward += 100
+        reward += 1000  # Massive reward for finishing
 
-    return float(reward)
+    return float(max(reward, 1e-5))  # Ensure reward is never zero
