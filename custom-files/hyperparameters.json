@@ -1,12 +1,12 @@
 {
-  "batch_size": 256,
-  "beta_entropy": 0.008,
-  "discount_factor": 0.995,
-  "e_greedy_value": 0.01,
-  "epsilon_steps": 200000,
+  "batch_size": 512,
+  "beta_entropy": 0.003,
+  "discount_factor": 0.998,
+  "e_greedy_value": 0.005,
+  "epsilon_steps": 250000,
   "exploration_type": "categorical",
   "loss_type": "huber",
-  "lr": 0.0003,
-  "num_episodes_between_training": 20,
-  "num_epochs": 15
+  "lr": 0.0002,
+  "num_episodes_between_training": 16,
+  "num_epochs": 10
 }
