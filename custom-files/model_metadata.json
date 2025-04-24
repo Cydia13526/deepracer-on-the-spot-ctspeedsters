@@ -402,12 +402,12 @@
         },
         {
             "steering_angle": 30,
-            "speed": 1.5,
+            "speed": 2,
             "index": 80
         },
         {
             "steering_angle": -30,
-            "speed": 1.5,
+            "speed": 2,
             "index": 81
         }
     ],

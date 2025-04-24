@@ -2,12 +2,12 @@ import math
 
 def reward_function(params):
     '''
-    Optimized reward function for Rogue Circuit:
+    Advanced reward function for Rogue Circuit:
     - Maximizes speed on straights (target: 3.8–4.0)
-    - Encourages higher curve speeds (target: 2.7–3.0)
-    - Strong penalties for off-track, edge, and sharp steering
-    - Uses curvature detection for dynamic speed adjustment
-    - Rewards progress and completion
+    - Encourages controlled speeds in curves (target: 2.3–2.9)
+    - Strongly penalizes off-track and edge cases
+    - Optimizes for center-line driving and smooth steering
+    - Rewards lap efficiency and completion
     '''
 
     # Input parameters
@@ -23,38 +23,38 @@ def reward_function(params):
     steps = params['steps']
 
     # Constants
-    MAX_SPEED = 3.9
-    CURVE_SPEED = 2.8
+    MAX_SPEED = 4.0
+    CURVE_SPEED = 2.6
     STEERING_LIMIT = 30.0
-    MIN_REWARD = 1e-6
+    MIN_REWARD = 1e-5
 
     # Initialize reward
     reward = 1.0
 
-    # --- 1. Severe off-track penalty ---
+    # --- 1. Hard penalty for off-track ---
     if not all_wheels_on_track or distance_from_center >= track_width / 2:
         return MIN_REWARD
 
     # --- 2. Center-line reward ---
     marker_1 = 0.1 * track_width
-    marker_2 = 0.2 * track_width
-    marker_3 = 0.35 * track_width
+    marker_2 = 0.25 * track_width
+    marker_3 = 0.4 * track_width
 
     if distance_from_center <= marker_1:
-        reward *= 2.5
+        reward *= 2.0
     elif distance_from_center <= marker_2:
-        reward *= 1.7
+        reward *= 1.5
     elif distance_from_center <= marker_3:
         reward *= 1.0
     else:
-        reward *= 0.2
+        reward *= 0.3
 
     # --- 3. Steering penalty ---
-    steering_penalty = 1.0 - (steering_angle / STEERING_LIMIT) ** 1.5
-    steering_penalty = max(0.4, steering_penalty)
+    steering_penalty = 1.0 - (steering_angle / STEERING_LIMIT) ** 2
+    steering_penalty = max(0.5, steering_penalty)
     reward *= steering_penalty
 
-    # --- 4. Curvature detection ---
+    # --- 4. Track curvature detection ---
     next_point = waypoints[closest_waypoints[1]]
     prev_point = waypoints[closest_waypoints[0]]
     track_direction = math.degrees(math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0]))
@@ -62,7 +62,6 @@ def reward_function(params):
     if direction_diff > 180:
         direction_diff = 360 - direction_diff
 
-    # Use three waypoints for curvature
     if closest_waypoints[1] + 1 < len(waypoints):
         next_next_point = waypoints[closest_waypoints[1] + 1]
         dx1 = next_point[0] - prev_point[0]
@@ -75,33 +74,33 @@ def reward_function(params):
     else:
         angle_diff = direction_diff
 
-    # --- 5. Speed optimization ---
+    # --- 5. Speed optimization based on curvature ---
     is_curve = angle_diff > 15 or direction_diff > 10
     if is_curve:
         if CURVE_SPEED - 0.3 <= speed <= CURVE_SPEED + 0.3:
-            reward *= 2.2
+            reward *= 2.0
         elif speed > CURVE_SPEED + 0.3:
-            reward *= 0.5
+            reward *= 0.7
         else:
-            reward *= 0.8
+            reward *= 0.9
     else:
         if speed >= MAX_SPEED - 0.2:
-            reward *= 3.0
+            reward *= 2.5
         elif speed >= MAX_SPEED - 0.5:
             reward *= 1.5
         else:
-            reward *= 0.7
+            reward *= 0.8
 
     # --- 6. Heading alignment ---
     if direction_diff < 5:
-        reward *= 1.4
-    elif direction_diff > 15:
-        reward *= 0.6
+        reward *= 1.3
+    elif direction_diff > 20:
+        reward *= 0.7
 
     # --- 7. Lap efficiency ---
     if steps > 0:
         efficiency = progress / steps
-        reward += efficiency * 20.0
+        reward += efficiency * 15.0
 
     # --- 8. Lap completion bonus ---
     if progress >= 100:
