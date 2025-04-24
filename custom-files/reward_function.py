@@ -4,9 +4,10 @@ def reward_function(params):
     '''
     Optimized reward function for Rogue Circuit:
     - Maximizes speed on straights (target: 3.8–4.0)
-    - Pushes curve speeds (target: 2.7–3.0)
-    - Strong penalties for off-track, edge, and high steering
-    - High rewards for efficiency and completion
+    - Encourages higher curve speeds (target: 2.7–3.0)
+    - Strong penalties for off-track, edge, and sharp steering
+    - Uses curvature detection for dynamic speed adjustment
+    - Rewards progress and completion
     '''
 
     # Input parameters
@@ -22,8 +23,8 @@ def reward_function(params):
     steps = params['steps']
 
     # Constants
-    MAX_SPEED = 3.8
-    CURVE_SPEED = 2.7
+    MAX_SPEED = 3.9
+    CURVE_SPEED = 2.8
     STEERING_LIMIT = 30.0
     MIN_REWARD = 1e-6
 
@@ -42,9 +43,9 @@ def reward_function(params):
     if distance_from_center <= marker_1:
         reward *= 2.5
     elif distance_from_center <= marker_2:
-        reward *= 1.8
+        reward *= 1.7
     elif distance_from_center <= marker_3:
-        reward *= 1.2
+        reward *= 1.0
     else:
         reward *= 0.2
 
@@ -53,7 +54,7 @@ def reward_function(params):
     steering_penalty = max(0.4, steering_penalty)
     reward *= steering_penalty
 
-    # --- 4. Simplified curvature detection ---
+    # --- 4. Curvature detection ---
     next_point = waypoints[closest_waypoints[1]]
     prev_point = waypoints[closest_waypoints[0]]
     track_direction = math.degrees(math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0]))
@@ -61,26 +62,39 @@ def reward_function(params):
     if direction_diff > 180:
         direction_diff = 360 - direction_diff
 
+    # Use three waypoints for curvature
+    if closest_waypoints[1] + 1 < len(waypoints):
+        next_next_point = waypoints[closest_waypoints[1] + 1]
+        dx1 = next_point[0] - prev_point[0]
+        dy1 = next_point[1] - prev_point[1]
+        dx2 = next_next_point[0] - next_point[0]
+        dy2 = next_next_point[1] - next_point[1]
+        angle_diff = abs(math.degrees(math.atan2(dy2, dx2) - math.atan2(dy1, dx1)))
+        if angle_diff > 180:
+            angle_diff = 360 - angle_diff
+    else:
+        angle_diff = direction_diff
+
     # --- 5. Speed optimization ---
-    is_curve = direction_diff > 12
+    is_curve = angle_diff > 15 or direction_diff > 10
     if is_curve:
         if CURVE_SPEED - 0.3 <= speed <= CURVE_SPEED + 0.3:
-            reward *= 2.5
+            reward *= 2.2
         elif speed > CURVE_SPEED + 0.3:
             reward *= 0.5
         else:
             reward *= 0.8
     else:
-        if speed >= MAX_SPEED:
+        if speed >= MAX_SPEED - 0.2:
             reward *= 3.0
-        elif speed >= MAX_SPEED - 0.4:
-            reward *= 1.7
+        elif speed >= MAX_SPEED - 0.5:
+            reward *= 1.5
         else:
             reward *= 0.7
 
     # --- 6. Heading alignment ---
     if direction_diff < 5:
-        reward *= 1.5
+        reward *= 1.4
     elif direction_diff > 15:
         reward *= 0.6
 
