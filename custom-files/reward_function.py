@@ -2,11 +2,11 @@ import math
 
 def reward_function(params):
     '''
-    Speed-prioritized reward function for Rogue Circuit:
-    - Maximizes speed on straights (target: 4.0+)
-    - Pushes higher curve speeds (target: 2.5–3.1)
-    - Tight penalties for off-track and high steering
-    - Rewards center-line driving and lap completion
+    Optimized reward function for Rogue Circuit:
+    - Maximizes speed on straights (target: 3.8–4.0)
+    - Pushes curve speeds (target: 2.7–3.0)
+    - Strong penalties for off-track, edge, and high steering
+    - High rewards for efficiency and completion
     '''
 
     # Input parameters
@@ -22,8 +22,8 @@ def reward_function(params):
     steps = params['steps']
 
     # Constants
-    MAX_SPEED = 4.0
-    CURVE_SPEED = 2.8
+    MAX_SPEED = 3.8
+    CURVE_SPEED = 2.7
     STEERING_LIMIT = 30.0
     MIN_REWARD = 1e-6
 
@@ -48,14 +48,10 @@ def reward_function(params):
     else:
         reward *= 0.2
 
-    # --- 3. Steering and speed penalty ---
+    # --- 3. Steering penalty ---
     steering_penalty = 1.0 - (steering_angle / STEERING_LIMIT) ** 1.5
     steering_penalty = max(0.4, steering_penalty)
     reward *= steering_penalty
-
-    # Dynamic speed penalty based on steering
-    if steering_angle > 15 and speed > CURVE_SPEED:
-        reward *= 0.6  # Penalize high speed with sharp steering
 
     # --- 4. Simplified curvature detection ---
     next_point = waypoints[closest_waypoints[1]]
@@ -69,13 +65,13 @@ def reward_function(params):
     is_curve = direction_diff > 12
     if is_curve:
         if CURVE_SPEED - 0.3 <= speed <= CURVE_SPEED + 0.3:
-            reward *= 2.2
+            reward *= 2.5
         elif speed > CURVE_SPEED + 0.3:
             reward *= 0.5
         else:
-            reward *= 0.85
+            reward *= 0.8
     else:
-        if speed >= MAX_SPEED - 0.15:
+        if speed >= MAX_SPEED:
             reward *= 3.0
         elif speed >= MAX_SPEED - 0.4:
             reward *= 1.7
@@ -83,8 +79,8 @@ def reward_function(params):
             reward *= 0.7
 
     # --- 6. Heading alignment ---
-    if direction_diff < 4:
-        reward *= 1.4
+    if direction_diff < 5:
+        reward *= 1.5
     elif direction_diff > 15:
         reward *= 0.6
 
@@ -95,7 +91,7 @@ def reward_function(params):
 
     # --- 8. Lap completion bonus ---
     if progress >= 100:
-        reward += 150.0
+        reward += 100.0
 
     reward = max(MIN_REWARD, reward)
     return float(reward)
