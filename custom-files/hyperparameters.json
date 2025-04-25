@@ -1,7 +1,7 @@
 {
   "batch_size": 160,
   "beta_entropy": 0.015,
-  "discount_factor": 0.999,
+  "discount_factor": 0.95,
   "e_greedy_value": 0.05,
   "epsilon_steps": 30000,
   "exploration_type": "categorical",
