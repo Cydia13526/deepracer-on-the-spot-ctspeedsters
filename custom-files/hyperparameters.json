@@ -1,12 +1,16 @@
 {
-  "batch_size": 64,
-  "beta_entropy": 0.01,
-  "discount_factor": 0.999,
+  "batch_size": 256,
+  "beta_entropy": 0.03,
+  "discount_factor": 0.98,
   "e_greedy_value": 0.05,
-  "epsilon_steps": 10000,
+  "epsilon_steps": 3000,
   "exploration_type": "categorical",
   "loss_type": "huber",
-  "lr": 0.0003,
-  "num_episodes_between_training": 20,
-  "num_epochs": 3
+  "lr": 0.0007,
+  "num_episodes_between_training": 15,
+  "num_epochs": 7,
+  "training_algorithm": "clipped_ppo",
+  "neural_network": "DEEP_CONVOLUTIONAL_NETWORK",
+  "sensor": ["FRONT_FACING_CAMERA"],
+  "action_space_type": "discrete",
 }
