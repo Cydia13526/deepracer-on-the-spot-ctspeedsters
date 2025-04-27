@@ -3,6 +3,7 @@ import math
 def reward_function(params):
     """
     Optimized reward function for AWS DeepRacer on re:Invent 2018 track with K1999 racing line.
+    Upgraded to prioritize 4.0 m/s on straight segments.
     """
     # Input parameters
     track_width = params['track_width']
@@ -20,13 +21,13 @@ def reward_function(params):
 
     # Constants
     MAX_SPEED = 4.0
-    MIN_SPEED = 1.0
+    MIN_SPEED = 1.5  # Increased to discourage very slow speeds
     DIRECTION_THRESHOLD = 5.0
     BENCHMARK_STEPS = 170
-    BENCHMARK_TIME = 9.0  # Tightened to push for faster laps
-    CURVATURE_THRESHOLD = 0.08  # Adjusted based on racing line (0.0665–0.12558)
+    BENCHMARK_TIME = 8.5  # Tightened for faster laps (previously 9.0)
+    CURVATURE_THRESHOLD = 0.07  # Lowered slightly to better identify straights
 
-    # K1999 Racing Line
+    # K1999 Racing Line (unchanged)
     RACING_LINE = [
         [-2.29464, -5.88662, 4.0, 0.06628], [-2.03416, -5.93312, 4.0, 0.06615],
         [-1.77324, -5.97635, 4.0, 0.06612], [-1.5115, -6.01641, 4.0, 0.0662],
@@ -141,23 +142,25 @@ def reward_function(params):
     target_speed = RACING_LINE[closest_index][2]
     curvature = RACING_LINE[closest_index][3]
     speed_diff = abs(speed - target_speed)
-    if speed_diff <= 0.5:
-        reward *= 1.5
-    elif speed_diff <= 1.0:
-        reward *= 1.0
-    else:
-        reward *= 0.7
 
-    if curvature < CURVATURE_THRESHOLD:
-        if speed >= 3.8:
-            reward *= 2.0  # Strong incentive for max speed on straights
-        elif speed < MIN_SPEED:
-            reward *= 0.3  # Harsh penalty for being too slow
-    else:
-        if speed <= min(target_speed, 2.5):  # Adjusted for sharp turns (2.0 m/s)
-            reward *= 1.3
-        elif speed > target_speed + 0.5:
-            reward *= 0.7
+    if curvature < CURVATURE_THRESHOLD:  # Straight segments
+        if speed >= 3.9:  # Very close to 4.0 m/s
+            reward *= 2.5  # Stronger incentive for max speed
+        elif speed >= 3.5:  # Still reasonably fast
+            reward *= 1.5
+        elif speed < 3.0:  # Penalize slow speeds on straights
+            reward *= 0.2  # Harsher penalty
+        else:
+            reward *= 0.5  # Moderate penalty for mid-range speeds
+    else:  # Turns
+        if speed_diff <= 0.3:  # Tighter tolerance for target speed in turns
+            reward *= 1.5
+        elif speed_diff <= 0.8:
+            reward *= 1.0
+        elif speed > target_speed + 0.5:  # Penalize overspeeding in turns
+            reward *= 0.6
+        else:
+            reward *= 0.8  # Penalize underspeeding slightly
 
     # Track direction alignment
     next_point = waypoints[closest_waypoints[1]]
@@ -176,11 +179,11 @@ def reward_function(params):
     if progress == 100:
         lap_time = steps / 15.0
         if lap_time < BENCHMARK_TIME:
-            reward += 200 * (BENCHMARK_TIME / lap_time)  # Higher reward for beating 9s
+            reward += 250 * (BENCHMARK_TIME / lap_time)  # Higher reward for beating 8.5s
         else:
             reward += 100
     elif is_offtrack:
-        reward -= 50 + 10 * speed  # Speed-based off-track penalty
+        reward -= 50 + 15 * speed  # Increased speed-based off-track penalty
 
     # Progress-based reward
     if (steps % 10) == 0:
@@ -189,8 +192,8 @@ def reward_function(params):
         reward += 0.5 * progress_diff  # Smooth progress reward
 
     # Dynamic steering penalty
-    if curvature < CURVATURE_THRESHOLD and steering_angle > 15:
-        reward *= 0.8  # Penalize high steering on straights
+    if curvature < CURVATURE_THRESHOLD and steering_angle > 10:  # Tighter steering penalty on straights
+        reward *= 0.7  # Stronger penalty for high steering on straights
     elif curvature >= CURVATURE_THRESHOLD and steering_angle > 25:
         reward *= 0.9  # Lighter penalty in turns
 
