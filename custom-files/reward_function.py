@@ -23,10 +23,10 @@ def reward_function(params):
     MIN_SPEED = 1.0
     DIRECTION_THRESHOLD = 5.0
     BENCHMARK_STEPS = 170
-    BENCHMARK_TIME = 9.0  # Tightened to push for faster laps
-    CURVATURE_THRESHOLD = 0.08  # Adjusted based on racing line (0.0665–0.12558)
+    BENCHMARK_TIME = 12.0  # Relaxed to encourage stability
+    CURVATURE_THRESHOLD = 0.08
 
-    # K1999 Racing Line with updated speeds from action space
+    # K1999 Racing Line (unchanged for brevity)
     RACING_LINE = [
         [-2.29464, -5.88662, 4.0, 0.06628], [-2.03416, -5.93312, 4.0, 0.06615],
         [-1.77324, -5.97635, 4.0, 0.06612], [-1.5115, -6.01641, 4.0, 0.0662],
@@ -127,75 +127,78 @@ def reward_function(params):
     racing_line_distance, closest_index = distance_to_racing_line(x, y, RACING_LINE)
     max_racing_line_distance = track_width / 2
 
-    # Reward for racing line adherence
-    if racing_line_distance <= 0.1 * max_racing_line_distance:
-        reward *= 3.0
-    elif racing_line_distance <= 0.3 * max_racing_line_distance:
-        reward *= 2.0
-    elif racing_line_distance <= 0.5 * max_racing_line_distance:
+    # Reward for racing line adherence (tighter rewards)
+    if racing_line_distance <= 0.05 * max_racing_line_distance:
+        reward *= 4.0  # Stronger reward for precision
+    elif racing_line_distance <= 0.2 * max_racing_line_distance:
+        reward *= 2.5
+    elif racing_line_distance <= 0.4 * max_racing_line_distance:
         reward *= 1.0
     else:
-        reward *= 0.5  # Softer penalty for slight deviations
+        reward *= 0.3  # Harsher penalty for nearing track edge
 
     # Speed management
     target_speed = RACING_LINE[closest_index][2]
     curvature = RACING_LINE[closest_index][3]
     speed_diff = abs(speed - target_speed)
-    if speed_diff <= 0.5:
-        reward *= 1.5
-    elif speed_diff <= 1.0:
+    if speed_diff <= 0.3:  # Tighter speed control
+        reward *= 1.8
+    elif speed_diff <= 0.8:
         reward *= 1.0
     else:
-        reward *= 0.7
+        reward *= 0.5  # Stronger penalty for speed mismatch
 
     if curvature < CURVATURE_THRESHOLD:
         if speed >= 3.8:
-            reward *= 2.0  # Strong incentive for max speed on straights
+            reward *= 2.0
         elif speed < MIN_SPEED:
-            reward *= 0.3  # Harsh penalty for being too slow
+            reward *= 0.2
     else:
-        if speed <= min(target_speed, 2.5):  # Adjusted for sharp turns (2.0 m/s)
-            reward *= 1.3
-        elif speed > target_speed + 0.5:
-            reward *= 0.7
+        if speed <= min(target_speed, 2.0):  # Lower speed cap in turns
+            reward *= 1.5
+        elif speed > target_speed + 0.3:
+            reward *= 0.5  # Harsher penalty for overspeeding
 
-    # Track direction alignment
+    # Track direction alignment (stricter in turns)
     next_point = waypoints[closest_waypoints[1]]
     prev_point = waypoints[closest_waypoints[0]]
     track_direction = math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0])
     track_direction = math.degrees(track_direction)
     direction_diff = abs(track_direction - heading)
-    if direction_diff > DIRECTION_THRESHOLD:
-        direction_penalty = 1 - (direction_diff / 30.0)
+    local_direction_threshold = DIRECTION_THRESHOLD if curvature < CURVATURE_THRESHOLD else 3.0
+    if direction_diff > local_direction_threshold:
+        direction_penalty = 1 - (direction_diff / 20.0)  # Tighter penalty
         direction_penalty = max(0, min(1, direction_penalty))
         reward *= direction_penalty
     else:
-        reward *= 1.2
+        reward *= 1.3
+
+    # Off-track and boundary penalties
+    if is_offtrack:
+        reward -= 100 + 15 * speed  # Stronger off-track penalty
+    if not all_wheels_on_track:
+        reward *= 0.3  # Harsher penalty for partial off-track
 
     # Track completion
     if progress == 100:
         lap_time = steps / 15.0
         if lap_time < BENCHMARK_TIME:
-            reward += 200 * (BENCHMARK_TIME / lap_time)  # Higher reward for beating 9s
+            reward += 150 * (BENCHMARK_TIME / lap_time)
         else:
-            reward += 100
-    elif is_offtrack:
-        reward -= 50 + 10 * speed  # Speed-based off-track penalty
+            reward += 80
+    elif racing_line_distance > 0.4 * max_racing_line_distance:
+        reward *= 0.5  # Additional penalty for nearing track edge
 
     # Progress-based reward
     if (steps % 10) == 0:
         expected_progress = (steps / BENCHMARK_STEPS) * 100
         progress_diff = progress - expected_progress
-        reward += 0.5 * progress_diff  # Smooth progress reward
+        reward += 0.7 * progress_diff
 
     # Dynamic steering penalty
-    if curvature < CURVATURE_THRESHOLD and steering_angle > 15:
-        reward *= 0.8  # Penalize high steering on straights
-    elif curvature >= CURVATURE_THRESHOLD and steering_angle > 25:
-        reward *= 0.9  # Lighter penalty in turns
-
-    # All wheels on track
-    if not all_wheels_on_track:
-        reward *= 0.5
+    if curvature < CURVATURE_THRESHOLD and steering_angle > 12:
+        reward *= 0.7
+    elif curvature >= CURVATURE_THRESHOLD and steering_angle > 20:
+        reward *= 0.8
 
     return float(reward)
