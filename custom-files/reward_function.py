@@ -388,7 +388,12 @@ class Reward:
 
         # Read all input parameters
         if self.verbose:
-            print("params: ", params)
+            new_params = {}
+            for key, value in params.items():
+                if key != 'waypoints':
+                    new_params[key] = [value]
+            # print out params without 'waypoints' key since it is duplicate
+            print("params: ", new_params)
 
         is_offtrack = params['is_offtrack']
         x = params['x']
@@ -434,16 +439,16 @@ class Reward:
         reward = STANDARD_REWARD
 
         dist, distance_reward = get_distance_reward()
-        reward += distance_reward
+        reward *= distance_reward
 
         speed_diff, speed_reward = get_speed_reward()
-        reward += speed_reward
-
-        projected_time, steps_reward = get_step_reward()
-        reward += steps_reward
+        reward *= speed_reward
 
         direction_diff, direction_reward = get_direction_reward()
-        reward += direction_reward
+        reward *= direction_reward
+
+        # projected_time, steps_reward = get_step_reward()
+        # reward += steps_reward
 
         finish_reward = get_finish_reward()
         reward += finish_reward
@@ -457,10 +462,10 @@ class Reward:
         if self.verbose == True:
             printStr = ("REWARD: {:3.4f}, DIS_REW: {:3.4f}, SPD_REW: {:3.4f}, DIR_REW: {:3.4f}, FIN_REW: {:3.4f}, "
                         "ACT_SPD: {:3.4f}, EXP_SPD: {:3.4f}, SPD_DIFF: {:3.4f}, "
-                        "CLOSET_INDEX: {}, DIST: {:3.4f}, DIR_DIFF: {:3.4f}, PROJ_TIME: {:3.4f}").format(
+                        "CLOSET_INDEX: {}, DIST: {:3.4f}, DIR_DIFF: {:3.4f}, STEPS: {}, PROGRESS: {}").format(
                         reward, distance_reward, speed_reward, direction_reward, finish_reward, 
                         speed, optimals[2], speed_diff,
-                        closest_index, dist, direction_diff, projected_time
+                        closest_index, dist, direction_diff, steps, progress
                         )
             print(printStr)
 
