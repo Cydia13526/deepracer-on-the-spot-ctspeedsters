@@ -191,7 +191,7 @@ class Reward:
             # Reward if less steps
             REWARD_PER_STEP_FOR_FASTEST_TIME = 1
             FASTEST_TIME = 15  # seconds (best time of 1st place on the track)
-            STANDARD_TIME = 22
+            STANDARD_TIME = 17.5
             projected_time = get_projected_time(
                 self.first_racingpoint_index, closest_index, steps)
             try:
@@ -206,9 +206,9 @@ class Reward:
 
         def get_finish_reward():
             ## Incentive for finishing the lap in less steps ##
-            STANDARD_TIME = 25  # seconds (time that is easily done by model)
+            STANDARD_TIME = 17.5  # seconds (time that is easily done by model)
             if progress == 100:
-                finish_reward = max(1e-3, -1 * (steps-STANDARD_TIME*15))
+                finish_reward = max(1e-3, (STANDARD_TIME*15 - steps))
             else:
                 finish_reward = 0
             return finish_reward
@@ -450,13 +450,13 @@ class Reward:
         ####################### VERBOSE #######################
 
         if self.verbose == True:
-            printStr = ("REWARD: {:3.4f}, DIS_REW: {:3.4f}, SPD_REW: {:3.4f}, DIR_REW: {:3.4f}, "
-                        "FIN_REW: {:3.4f}, ACT_SPD: {:3.4f}, EXP_SPD: {:3.4f}, SPD_DIFF: {:3.4f}, "
-                        "CLOSET_INDEX: {}, DIST: {:3.4f}, DIR_DIFF: {:3.4f}, PROJ_TIME: {:3.4f}").format(reward,
-                                                                                                         distance_reward, speed_reward,
-                                                                                                         direction_reward, finish_reward, speed, optimals[
-                                                                                                             2], speed_diff,
-                                                                                                         closest_index, dist, direction_diff, projected_time)
+            printStr = ("REWARD: {:3.4f}, DIS_REW: {:3.4f}, SPD_REW: {:3.4f}, DIR_REW: {:3.4f}, FIN_REW: {:3.4f}, "
+                        "ACT_SPD: {:3.4f}, EXP_SPD: {:3.4f}, SPD_DIFF: {:3.4f}, "
+                        "CLOSET_INDEX: {}, DIST: {:3.4f}, DIR_DIFF: {:3.4f}, PROJ_TIME: {:3.4f}").format(
+                        reward, distance_reward, speed_reward, direction_reward, finish_reward, 
+                        speed, optimals[2], speed_diff,
+                        closest_index, dist, direction_diff, projected_time
+                        )
             print(printStr)
 
         #################### RETURN REWARD ####################
