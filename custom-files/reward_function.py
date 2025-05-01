@@ -200,6 +200,9 @@ class Reward:
                                                (STANDARD_TIME-FASTEST_TIME))*(steps_prediction-(STANDARD_TIME*15+1)))
                 steps_reward = min(
                     REWARD_PER_STEP_FOR_FASTEST_TIME, reward_prediction / steps_prediction)
+                if self.verbose == True:
+                    print('projected_time {}, steps_prediction: {}, reward_prediction: {}, steps_reward: {}'.format(
+                        projected_time, steps_prediction, reward_prediction, steps_reward))
             except:
                 steps_reward = 0
             return projected_time, steps_reward
@@ -208,7 +211,9 @@ class Reward:
             ## Incentive for finishing the lap in less steps ##
             STANDARD_TIME = 17.5  # seconds (time that is easily done by model)
             if progress == 100:
-                finish_reward = max(1e-3, (STANDARD_TIME*15 - steps))
+                finish_reward = max(1e-3, (STANDARD_TIME*15 - steps)**2)
+                if self.verbose == True:
+                    print('progress is 100, steps: {}, finish_reward: {}'.format(steps, finish_reward))
             else:
                 finish_reward = 0
             return finish_reward
