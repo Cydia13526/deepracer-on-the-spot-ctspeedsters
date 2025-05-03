@@ -105,7 +105,6 @@ class Reward:
 
         #################### RACING LINE ######################
 
-        # Replace with actual waypoints for 2022_march_open_ccw if necessary
         racing_track = [[-2.29464, -5.88662, 4.0, 0.06628],
                         [-2.03416, -5.93312, 4.0, 0.06615],
                         [-1.77324, -5.97635, 4.0, 0.06612],
@@ -268,7 +267,6 @@ class Reward:
                         [-2.81556, -5.78311, 4.0, 0.06676],
                         [-2.55503, -5.83671, 4.0, 0.0665]]
 
-
         # Validate input parameters
         if not all(isinstance(p, (int, float)) for p in [params.get('x'), params.get('y'), params.get('heading'),
                                                          params.get('speed'), params.get('steering_angle'),
@@ -303,71 +301,78 @@ class Reward:
 
         ################ REWARD AND PUNISHMENT ################
 
-        reward = 1
+        reward = 1.0
 
-        DISTANCE_MULTIPLE = 1
+        # Distance reward
         dist = dist_to_racing_line(optimals[0:2], optimals_second[0:2], [x, y])
         distance_reward = max(1e-3, 1 - (dist / (track_width * 0.5)))
-        reward += distance_reward * DISTANCE_MULTIPLE
+        reward += distance_reward * 1.0
 
-        SPEED_DIFF_NO_REWARD = 1
-        SPEED_MULTIPLE = 2
+        # Speed reward, more lenient in turns
         speed_diff = abs(optimals[2] - speed)
-        if speed_diff <= SPEED_DIFF_NO_REWARD:
-            speed_reward = (1 - (speed_diff / SPEED_DIFF_NO_REWARD) ** 2) ** 2
+        if optimals[2] < 3.0:  # Turn section
+            speed_diff_threshold = 1.5
+        else:  # Straight section
+            speed_diff_threshold = 1.0
+        if speed_diff <= speed_diff_threshold:
+            speed_reward = (1 - (speed_diff / speed_diff_threshold) ** 2) ** 2
         else:
-            speed_reward = 0
-        reward += speed_reward * SPEED_MULTIPLE
+            speed_reward = max(0.2, 1 - (speed_diff - speed_diff_threshold) / 2)
+        reward += speed_reward * 3.0  # Increased weight to prioritize speed
 
-        REWARD_PER_STEP_FOR_FASTEST_TIME = 1
-        STANDARD_TIME = 18
-        FASTEST_TIME = 12
+        # Direction reward
+        direction_diff = racing_direction_diff(optimals[0:2], optimals_second[0:2], [x, y], heading)
+        if direction_diff > 45:
+            reward *= max(0.1, 1 - (direction_diff - 45) / 45)
+
+        # Steering smoothness penalty
+        steering_penalty = min(1.0, abs(steering_angle) / 30)  # Assuming steering_angle in degrees
+        reward *= (1 - 0.2 * steering_penalty)
+
+        # Progress reward
+        progress_reward = progress / 100
+        reward += progress_reward * 1.0
+
+        # Time-based reward
         times_list = [row[3] for row in racing_track]
         projected_time_val = projected_time(self.first_racingpoint_index, closest_index, steps, times_list)
         try:
             steps_prediction = projected_time_val * 15 + 1
-            reward_prediction = max(1e-3, (-REWARD_PER_STEP_FOR_FASTEST_TIME * FASTEST_TIME /
-                                           (STANDARD_TIME - FASTEST_TIME)) * (steps_prediction - (STANDARD_TIME * 15 + 1)))
-            steps_reward = min(REWARD_PER_STEP_FOR_FASTEST_TIME, reward_prediction / steps_prediction)
+            reward_prediction = max(1e-3, (-1.0 * 12 / (18 - 12)) * (steps_prediction - (18 * 15 + 1)))
+            steps_reward = min(1.0, reward_prediction / steps_prediction)
         except:
             steps_reward = 0
         reward += steps_reward
 
-        direction_diff = racing_direction_diff(optimals[0:2], optimals_second[0:2], [x, y], heading)
-        if direction_diff > 30:
-            reward = 1e-3
-
-        speed_diff_zero = optimals[2] - speed
-        if speed_diff_zero > 0.5:
-            reward = 1e-3
-
-        if reward > 1e-3:
-            reward = max(reward * reward, 1e-3)
-
-        REWARD_FOR_FASTEST_TIME = 1500
+        # Finish reward
         if progress == 100:
-            finish_reward = max(1e-3, (-REWARD_FOR_FASTEST_TIME /
-                                       (15 * (STANDARD_TIME - FASTEST_TIME))) * (steps - STANDARD_TIME * 15))
+            finish_reward = max(1e-3, (-2000 / (15 * (18 - 12))) * (steps - 18 * 15))
         else:
             finish_reward = 0
         reward += finish_reward
 
+        # Off-track penalty (softened, since no off-track events observed)
         if not all_wheels_on_track:
-            reward = 1e-3
+            reward *= 0.1
+
+        # Normalize reward
+        reward = max(1e-3, reward / 10)
 
         ####################### VERBOSE #######################
 
         if self.verbose:
             print("Closest index: %i" % closest_index)
             print("Distance to racing line: %f" % dist)
-            print("=== Distance reward (w/out multiple): %f ===" % distance_reward)
+            print("Distance reward: %f" % distance_reward)
             print("Optimal speed: %f" % optimals[2])
             print("Speed difference: %f" % speed_diff)
-            print("=== Speed reward (w/out multiple): %f ===" % speed_reward)
+            print("Speed reward: %f" % speed_reward)
             print("Direction difference: %f" % direction_diff)
-            print("Predicted time: %f" % projected_time_val)
-            print("=== Steps reward: %f ===" % steps_reward)
-            print("=== Finish reward: %f ===" % finish_reward)
+            print("Steering penalty: %f" % steering_penalty)
+            print("Progress reward: %f" % progress_reward)
+            print("Projected time: %f" % projected_time_val)
+            print("Steps reward: %f" % steps_reward)
+            print("Finish reward: %f" % finish_reward)
 
         #################### RETURN REWARD ####################
 
