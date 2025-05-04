@@ -306,54 +306,51 @@ class Reward:
         # Distance reward
         dist = dist_to_racing_line(optimals[0:2], optimals_second[0:2], [x, y])
         distance_reward = max(1e-3, 1 - (dist / (track_width * 0.5)))
-        reward += distance_reward * 1.0
+        reward += distance_reward * 1.5  # Increased weight
 
-        # Speed reward, more lenient in turns
+        # Speed reward
         speed_diff = abs(optimals[2] - speed)
         if optimals[2] < 3.0:  # Turn section
-            speed_diff_threshold = 1.5
+            speed_diff_threshold = 1.8  # Increased for faster cornering
         else:  # Straight section
             speed_diff_threshold = 1.0
         if speed_diff <= speed_diff_threshold:
             speed_reward = (1 - (speed_diff / speed_diff_threshold) ** 2) ** 2
         else:
-            speed_reward = max(0.2, 1 - (speed_diff - speed_diff_threshold) / 2)
-        reward += speed_reward * 3.0  # Increased weight to prioritize speed
+            speed_reward = max(0.1, 1 - (speed_diff - speed_diff_threshold) / 2)  # Stricter minimum
+        reward += speed_reward * 3.0
 
         # Direction reward
         direction_diff = racing_direction_diff(optimals[0:2], optimals_second[0:2], [x, y], heading)
-        if direction_diff > 45:
-            reward *= max(0.1, 1 - (direction_diff - 45) / 45)
+        if direction_diff > 30:  # Stricter threshold
+            reward *= max(0.2, 1 - (direction_diff - 30) / 60)
 
         # Steering smoothness penalty
-        steering_penalty = min(1.0, abs(steering_angle) / 30)  # Assuming steering_angle in degrees
-        reward *= (1 - 0.2 * steering_penalty)
+        steering_penalty = min(1.0, abs(steering_angle) / 30)
+        reward *= (1 - 0.3 * steering_penalty)  # Increased penalty
 
         # Progress reward
         progress_reward = progress / 100
-        reward += progress_reward * 1.0
+        reward += progress_reward * 2.0  # Increased weight
 
-        # Time-based reward
-        times_list = [row[3] for row in racing_track]
-        projected_time_val = projected_time(self.first_racingpoint_index, closest_index, steps, times_list)
-        try:
-            steps_prediction = projected_time_val * 15 + 1
-            reward_prediction = max(1e-3, (-1.0 * 12 / (18 - 12)) * (steps_prediction - (18 * 15 + 1)))
-            steps_reward = min(1.0, reward_prediction / steps_prediction)
-        except:
-            steps_reward = 0
-        reward += steps_reward
+        # Time-based reward (simplified)
+        if progress == 100:
+            actual_time = steps / 15
+            time_reward = max(0, (18 - actual_time) / 18) * 2.0
+        else:
+            time_reward = 0
+        reward += time_reward
 
         # Finish reward
         if progress == 100:
-            finish_reward = max(1e-3, (-2000 / (15 * (18 - 12))) * (steps - 18 * 15))
+            finish_reward = max(1e-3, (-1000 / (15 * (18 - 12))) * (steps - 18 * 15))  # Reduced coefficient
         else:
             finish_reward = 0
         reward += finish_reward
 
-        # Off-track penalty (softened, since no off-track events observed)
+        # Off-track penalty
         if not all_wheels_on_track:
-            reward *= 0.1
+            reward *= 0.3  # Softened penalty
 
         # Normalize reward
         reward = max(1e-3, reward / 10)
@@ -370,8 +367,7 @@ class Reward:
             print("Direction difference: %f" % direction_diff)
             print("Steering penalty: %f" % steering_penalty)
             print("Progress reward: %f" % progress_reward)
-            print("Projected time: %f" % projected_time_val)
-            print("Steps reward: %f" % steps_reward)
+            print("Time reward: %f" % time_reward)
             print("Finish reward: %f" % finish_reward)
 
         #################### RETURN REWARD ####################
