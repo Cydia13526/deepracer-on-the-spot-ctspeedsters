@@ -88,7 +88,7 @@ class Reward:
             return dist, distance_reward * DISTANCE_MULTIPLE
 
         def get_speed_reward():
-            SPEED_MULTIPLE = 1.2
+            SPEED_MULTIPLE = 1.5  # Increased from 1.2
             SPEED_DIFF_NO_REWARD = 1.5
             speed_diff = abs(optimals[2] - speed)
             if speed_diff <= SPEED_DIFF_NO_REWARD:
@@ -99,7 +99,7 @@ class Reward:
 
         def get_direction_reward():
             direction_diff = racing_direction_diff(optimals[0:2], optimals_second[0:2], [x, y], heading)
-            STEERING_ANGLE_THRESHOLD = 20
+            STEERING_ANGLE_THRESHOLD = 30  # Increased from 20
             if direction_diff > STEERING_ANGLE_THRESHOLD:
                 reward = 1e-3
             else:
@@ -109,7 +109,7 @@ class Reward:
         def get_step_reward():
             REWARD_PER_STEP_FOR_FASTEST_TIME = 1.5
             FASTEST_TIME = 15
-            STANDARD_TIME = 17.5
+            STANDARD_TIME = 16.5  # Adjusted from 17.5
             projected_time = get_projected_time(self.first_racingpoint_index, closest_index, steps)
             try:
                 steps_prediction = projected_time * 15 + 1
@@ -129,7 +129,7 @@ class Reward:
             return 1.0
 
         def get_finish_reward():
-            STANDARD_TIME = 17.5
+            STANDARD_TIME = 16.5  # Adjusted from 17.5
             if progress == 100:
                 finish_reward = max(1e-3, (STANDARD_TIME*15 - steps)**2)
                 if self.verbose:
