@@ -187,19 +187,22 @@ class Reward:
             final_speed_reward = speed_reward * SPEED_MULTIPLE
             return speed_diff, final_speed_reward
 
-        def get_step_reward():
+        def get_step_reward(self):  # Added 'self' to match the implied class context
             # Reward if less steps
-            REWARD_PER_STEP_FOR_FASTEST_TIME = 1
-            FASTEST_TIME = 15  # seconds (best time of 1st place on the track)
-            STANDARD_TIME = 17.5
+            REWARD_PER_STEP_FOR_FASTEST_TIME = 5
+            FASTEST_TIME = 14  # seconds (best time of 1st place on the track)
+            STANDARD_TIME = 16
             projected_time = get_projected_time(
                 self.first_racingpoint_index, closest_index, steps)
             try:
                 steps_prediction = projected_time * 15 + 1
-                reward_prediction = max(1e-3, (-REWARD_PER_STEP_FOR_FASTEST_TIME*(FASTEST_TIME) /
-                                               (STANDARD_TIME-FASTEST_TIME))*(steps_prediction-(STANDARD_TIME*15+1)))
+                reward_prediction = max(1e-3, (-REWARD_PER_STEP_FOR_FASTEST_TIME * FASTEST_TIME /
+                                               (STANDARD_TIME - FASTEST_TIME)) *
+                                        (steps_prediction - (STANDARD_TIME * 15 + 1)))
                 steps_reward = min(
                     REWARD_PER_STEP_FOR_FASTEST_TIME, reward_prediction / steps_prediction)
+                # Normalize to [0, 1]
+                steps_reward = steps_reward / REWARD_PER_STEP_FOR_FASTEST_TIME
                 if self.verbose == True:
                     print('projected_time {}, steps_prediction: {}, reward_prediction: {}, steps_reward: {}'.format(
                         projected_time, steps_prediction, reward_prediction, steps_reward))
@@ -209,7 +212,7 @@ class Reward:
 
         def get_finish_reward():
             ## Incentive for finishing the lap in less steps ##
-            STANDARD_TIME = 17.5  # seconds (time that is easily done by model)
+            STANDARD_TIME = 16  # seconds (time that is easily done by model)
             if progress == 100:
                 finish_reward = max(1e-3, (STANDARD_TIME*15 - steps)**2)
                 if self.verbose == True:
@@ -447,8 +450,8 @@ class Reward:
         direction_diff, direction_reward = get_direction_reward()
         reward *= direction_reward
 
-        # projected_time, steps_reward = get_step_reward()
-        # reward += steps_reward
+        projected_time, steps_reward = get_step_reward()
+        reward += steps_reward
 
         finish_reward = get_finish_reward()
         reward += finish_reward
