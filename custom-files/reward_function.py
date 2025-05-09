@@ -439,13 +439,13 @@ class Reward:
         reward = STANDARD_REWARD
 
         dist, distance_reward = get_distance_reward()
-        reward += distance_reward
+        reward *= distance_reward
 
         speed_diff, speed_reward = get_speed_reward()
-        reward += speed_reward
+        reward *= speed_reward
 
         direction_diff, direction_reward = get_direction_reward()
-        reward += direction_reward
+        reward *= direction_reward
 
         # projected_time, steps_reward = get_step_reward()
         # reward += steps_reward
