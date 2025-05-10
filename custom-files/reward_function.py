@@ -457,6 +457,8 @@ class Reward:
         if is_offtrack:
             reward = 1e-3
 
+        if not params['all_wheels_on_track']:
+            reward -= 1e-3
         ####################### VERBOSE #######################
 
         if self.verbose == True:
