@@ -188,14 +188,13 @@ class Reward:
             return speed_diff, final_speed_reward
 
         def get_step_reward():
-            # Reward if less steps
-            # REWARD_PER_STEP_FOR_FASTEST_TIME = 1
-            FASTEST_TIME = 16  # seconds (best time of 1st place on the track)
-            STANDARD_TIME = 17.5
-            THRESHOLD_STEPS_LOW = FASTEST_TIME * 15 + 1
-            THRESHOLD_STEPS_HIGH = STANDARD_TIME * 15 + 1
-            
             try:
+                # Reward if less steps
+                # REWARD_PER_STEP_FOR_FASTEST_TIME = 1
+                FASTEST_TIME = 15  # seconds (best time of 1st place on the track)
+                STANDARD_TIME = 17.5
+                THRESHOLD_STEPS_LOW = FASTEST_TIME * 15 + 1
+                THRESHOLD_STEPS_HIGH = STANDARD_TIME * 15 + 1
                 projected_time = get_projected_time(self.first_racingpoint_index, closest_index, steps)
                 steps_prediction = projected_time * 15 + 1
                 # reward_prediction = max(1e-3, (-REWARD_PER_STEP_FOR_FASTEST_TIME*(FASTEST_TIME) /
@@ -214,8 +213,7 @@ class Reward:
                     BASE = 2.0
                     steps_reward = 2.0 * (BASE ** (THRESHOLD_STEPS_LOW - steps_prediction))  # exponential increase
                 if self.verbose:
-                    print('projected_time {}, steps_prediction: {}, steps_reward: {}'.format(
-                        projected_time, steps_prediction, steps_reward))
+                    print('projected_time {}, steps_prediction: {}, steps_reward: {}'.format(projected_time, steps_prediction, steps_reward))
             except:
                 steps_reward = 0
             return projected_time, steps_reward
