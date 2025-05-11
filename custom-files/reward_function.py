@@ -441,8 +441,8 @@ class Reward:
         dist, distance_reward = get_distance_reward()
         reward *= distance_reward
 
-        speed_diff, speed_reward = get_speed_reward()
-        reward *= speed_reward
+        # speed_diff, speed_reward = get_speed_reward()
+        # reward *= speed_reward
 
         direction_diff, direction_reward = get_direction_reward()
         reward *= direction_reward
@@ -463,8 +463,8 @@ class Reward:
             printStr = ("REWARD: {:3.4f}, DIS_REW: {:3.4f}, SPD_REW: {:3.4f}, DIR_REW: {:3.4f}, FIN_REW: {:3.4f}, "
                         "ACT_SPD: {:3.4f}, EXP_SPD: {:3.4f}, SPD_DIFF: {:3.4f}, "
                         "CLOSET_INDEX: {}, DIST: {:3.4f}, DIR_DIFF: {:3.4f}, STEPS: {}, PROGRESS: {}").format(
-                        reward, distance_reward, speed_reward, direction_reward, finish_reward, 
-                        speed, optimals[2], speed_diff,
+                        reward, distance_reward, 0, direction_reward, finish_reward, 
+                        speed, optimals[2], 0,
                         closest_index, dist, direction_diff, steps, progress
                         )
             print(printStr)
