@@ -189,20 +189,33 @@ class Reward:
 
         def get_step_reward():
             # Reward if less steps
-            REWARD_PER_STEP_FOR_FASTEST_TIME = 1
-            FASTEST_TIME = 15  # seconds (best time of 1st place on the track)
+            # REWARD_PER_STEP_FOR_FASTEST_TIME = 1
+            FASTEST_TIME = 16  # seconds (best time of 1st place on the track)
             STANDARD_TIME = 17.5
-            projected_time = get_projected_time(
-                self.first_racingpoint_index, closest_index, steps)
+            THRESHOLD_STEPS_LOW = FASTEST_TIME * 15 + 1
+            THRESHOLD_STEPS_HIGH = STANDARD_TIME * 15 + 1
+            
             try:
+                projected_time = get_projected_time(self.first_racingpoint_index, closest_index, steps)
                 steps_prediction = projected_time * 15 + 1
-                reward_prediction = max(1e-3, (-REWARD_PER_STEP_FOR_FASTEST_TIME*(FASTEST_TIME) /
-                                               (STANDARD_TIME-FASTEST_TIME))*(steps_prediction-(STANDARD_TIME*15+1)))
-                steps_reward = min(
-                    REWARD_PER_STEP_FOR_FASTEST_TIME, reward_prediction / steps_prediction)
-                if self.verbose == True:
-                    print('projected_time {}, steps_prediction: {}, reward_prediction: {}, steps_reward: {}'.format(
-                        projected_time, steps_prediction, reward_prediction, steps_reward))
+                # reward_prediction = max(1e-3, (-REWARD_PER_STEP_FOR_FASTEST_TIME*(FASTEST_TIME) /
+                #                                (STANDARD_TIME-FASTEST_TIME))*(steps_prediction-(STANDARD_TIME*15+1)))
+                # steps_reward = min(
+                #     REWARD_PER_STEP_FOR_FASTEST_TIME, reward_prediction / steps_prediction)
+                if steps_prediction >= THRESHOLD_STEPS_HIGH:
+                    steps_reward = 1.0
+                elif THRESHOLD_STEPS_LOW <= steps_prediction <   THRESHOLD_STEPS_HIGH:
+                    linear_range = THRESHOLD_STEPS_HIGH - THRESHOLD_STEPS_LOW
+                    normalized_steps = (steps_prediction - THRESHOLD_STEPS_LOW) / linear_range
+                    steps_reward = 1.0 + (1.0 - normalized_steps)
+                else:
+                    # Exponential growth section: begins exponential increase starting from 2 points  
+                    # Set exponential coefficient so that score = 2 when steps=225, and score=100 when steps=100 (adjustable as needed)
+                    BASE = 2.0
+                    steps_reward = 2.0 * (BASE ** (THRESHOLD_STEPS_LOW - steps_prediction))  # exponential increase
+                if self.verbose:
+                    print('projected_time {}, steps_prediction: {}, steps_reward: {}'.format(
+                        projected_time, steps_prediction, steps_reward))
             except:
                 steps_reward = 0
             return projected_time, steps_reward
@@ -211,8 +224,11 @@ class Reward:
             ## Incentive for finishing the lap in less steps ##
             STANDARD_TIME = 17.5  # seconds (time that is easily done by model)
             if progress == 100:
-                finish_reward = max(1e-3, (STANDARD_TIME*15 - steps)**2)
-                if self.verbose == True:
+                if steps < STANDARD_TIME*15:
+                    finish_reward = (STANDARD_TIME*15 - steps)**2
+                else:
+                    finish_reward = 1e-3
+                if self.verbose:
                     print('progress is 100, steps: {}, finish_reward: {}'.format(steps, finish_reward))
             else:
                 finish_reward = 0
@@ -447,8 +463,8 @@ class Reward:
         direction_diff, direction_reward = get_direction_reward()
         reward *= direction_reward
 
-        # projected_time, steps_reward = get_step_reward()
-        # reward += steps_reward
+        projected_time, steps_reward = get_step_reward()
+        reward *= steps_reward
 
         finish_reward = get_finish_reward()
         reward += finish_reward
@@ -459,12 +475,14 @@ class Reward:
 
         ####################### VERBOSE #######################
 
-        if self.verbose == True:
-            printStr = ("REWARD: {:3.4f}, DIS_REW: {:3.4f}, SPD_REW: {:3.4f}, DIR_REW: {:3.4f}, FIN_REW: {:3.4f}, "
+        if self.verbose:
+            printStr = ("REWARD: {:3.4f}, DIS_REW: {:3.4f}, SPD_REW: {:3.4f}, DIR_REW: {:3.4f}, STEP_REW: {:3.4f}, FIN_REW: {:3.4f}, "
                         "ACT_SPD: {:3.4f}, EXP_SPD: {:3.4f}, SPD_DIFF: {:3.4f}, "
+                        "PROJECT_TIME: {:3.4f}, "
                         "CLOSET_INDEX: {}, DIST: {:3.4f}, DIR_DIFF: {:3.4f}, STEPS: {}, PROGRESS: {}").format(
-                        reward, distance_reward, 0, direction_reward, finish_reward, 
+                        reward, distance_reward, 0, direction_reward, steps_reward, finish_reward, 
                         speed, optimals[2], 0,
+                        projected_time, 
                         closest_index, dist, direction_diff, steps, progress
                         )
             print(printStr)
