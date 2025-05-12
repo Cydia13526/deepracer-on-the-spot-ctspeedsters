@@ -405,7 +405,7 @@ class Reward:
         track_width = params['track_width']
         # steering_angle = params['steering_angle']
         # waypoints = params['waypoints']
-        # closest_waypoints = params['closest_waypoints']
+        closest_waypoints = params['closest_waypoints']
         # is_offtrack = params['is_offtrack']
         # distance_from_center = params['distance_from_center']
         # is_left_of_center = params['is_left_of_center']
@@ -457,8 +457,17 @@ class Reward:
         if is_offtrack:
             reward = 1e-3
 
-        # if not params['all_wheels_on_track']:
-        #     reward = 1e-3
+        # Check if not all wheels are on track
+        if not params['all_wheels_on_track']:
+            # Extract x and y coordinates of the closest waypoint
+            waypoint_x = params['closest_waypoint']['x']
+            waypoint_y = params['closest_waypoint']['y']
+
+        if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center'] == False:
+            reward = 1e-3
+        if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center'] == False:
+            reward = 1e-3
+
         ####################### VERBOSE #######################
 
         if self.verbose == True:
