@@ -460,12 +460,12 @@ class Reward:
         # Check if not all wheels are on track
         if not params['all_wheels_on_track']:
             # Extract x and y coordinates of the closest waypoint
-            waypoint_x = params['closest_waypoint']['x']
-            waypoint_y = params['closest_waypoint']['y']
+            waypoint_x = params['closest_waypoint'][0]
+            waypoint_y = params['closest_waypoint'][1]
 
-        if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center'] == False:
+        if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center']:
             reward = 1e-3
-        if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center'] == False:
+        if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center']:
             reward = 1e-3
 
         ####################### VERBOSE #######################
