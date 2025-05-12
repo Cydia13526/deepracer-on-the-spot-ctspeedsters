@@ -454,25 +454,25 @@ class Reward:
         reward += finish_reward
 
         ## Zero reward if off track ##
-        # if is_offtrack:
-        #     reward = 1e-3
-        #
-        # # Check if not all wheels are on track
-        # if not params['all_wheels_on_track']:
-        #     try:
-        #         waypoints = params['waypoints']
-        #         closest_waypoints = params['closest_waypoints']
-        #         closest_index = closest_waypoints[0]  # First index is the closest waypoint
-        #         waypoint_x = waypoints[closest_index][0]  # x-coordinate
-        #         waypoint_y = waypoints[closest_index][1]  # y-coordinate
-        #
-        #         if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center'] == True:
-        #             reward = 1e-3
-        #         if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center'] == True:
-        #             reward = 1e-3
-        #     except (KeyError, IndexError, TypeError) as e:
-        #         if self.verbose:
-        #             print(f"Error accessing waypoints: {e}")
+        if is_offtrack:
+            reward = 1e-3
+
+        # Check if not all wheels are on track
+        if not params['all_wheels_on_track']:
+            try:
+                waypoints = params['waypoints']
+                closest_waypoints = params['closest_waypoints']
+                closest_index = closest_waypoints[0]  # First index is the closest waypoint
+                waypoint_x = waypoints[closest_index][0]  # x-coordinate
+                waypoint_y = waypoints[closest_index][1]  # y-coordinate
+
+                if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center']:
+                    reward = 1e-3
+                if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center']:
+                    reward = 1e-3
+            except (KeyError, IndexError, TypeError) as e:
+                if self.verbose:
+                    print(f"Error accessing waypoints: {e}")
 
         ####################### VERBOSE #######################
 
