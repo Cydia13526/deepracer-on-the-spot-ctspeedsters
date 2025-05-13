@@ -458,23 +458,23 @@ class Reward:
             reward = 1e-3
 
         # Check if not all wheels are on track
-        if not params['all_wheels_on_track']:
-            try:
-                waypoints = params['waypoints']
-                closest_waypoints = params['closest_waypoints']
-                closest_index = closest_waypoints[0]  # First index is the closest waypoint
-                waypoint_x = waypoints[closest_index][0]  # x-coordinate
-                waypoint_y = waypoints[closest_index][1]  # y-coordinate
-
-                if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center']:
-                    reward = 1e-3
-                if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center']:
-                    reward = 1e-3
-            except (KeyError, IndexError, TypeError) as e:
-                if self.verbose:
-                    print(f"Error accessing waypoints: {e}")
         # if not params['all_wheels_on_track']:
-        #     reward = 1e-3
+        #     try:
+        #         waypoints = params['waypoints']
+        #         closest_waypoints = params['closest_waypoints']
+        #         closest_index = closest_waypoints[0]  # First index is the closest waypoint
+        #         waypoint_x = waypoints[closest_index][0]  # x-coordinate
+        #         waypoint_y = waypoints[closest_index][1]  # y-coordinate
+        #
+        #         if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center']:
+        #             reward = 1e-3
+        #         if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center']:
+        #             reward = 1e-3
+        #     except (KeyError, IndexError, TypeError) as e:
+        #         if self.verbose:
+        #             print(f"Error accessing waypoints: {e}")
+        if not params['all_wheels_on_track']:
+            reward = 1e-3
         ####################### VERBOSE #######################
 
         if self.verbose == True:
