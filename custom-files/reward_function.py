@@ -209,7 +209,7 @@ class Reward:
 
         def get_finish_reward():
             ## Incentive for finishing the lap in less steps ##
-            STANDARD_TIME = 14.7 # seconds (time that is easily done by model)
+            STANDARD_TIME = 15 # seconds (time that is easily done by model)
             if progress == 100:
                 finish_reward = max(1e-3, (STANDARD_TIME*15 - steps)**2)
                 if self.verbose == True:
