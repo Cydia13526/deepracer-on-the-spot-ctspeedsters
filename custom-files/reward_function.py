@@ -461,8 +461,8 @@ class Reward:
         direction_diff, direction_reward = get_direction_reward()
         reward *= direction_reward
 
-        projected_time, steps_reward = get_step_reward()
-        reward *= steps_reward
+        # projected_time, steps_reward = get_step_reward()
+        # reward *= steps_reward
 
         finish_reward = get_finish_reward()
         reward += finish_reward
@@ -478,9 +478,9 @@ class Reward:
                         "ACT_SPD: {:3.4f}, EXP_SPD: {:3.4f}, SPD_DIFF: {:3.4f}, "
                         "PROJECT_TIME: {:3.4f}, "
                         "CLOSET_INDEX: {}, DIST: {:3.4f}, DIR_DIFF: {:3.4f}, STEPS: {}, PROGRESS: {}").format(
-                        reward, distance_reward, speed_reward, direction_reward, steps_reward, finish_reward, 
+                        reward, distance_reward, speed_reward, direction_reward, 0, finish_reward, 
                         speed, optimals[2], speed_diff,
-                        projected_time, 
+                        0, 
                         closest_index, dist, direction_diff, steps, progress
                         )
             print(printStr)
