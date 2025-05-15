@@ -457,6 +457,27 @@ class Reward:
         if is_offtrack:
             reward = 1e-3
         
+        if 3.9 <= x <= 4.2 and 0.3 <= y <= 0.5:  # Approximate corner region
+        # Reward staying close to center
+            if params['distance_from_center'] <= 0.1 * track_width:
+                reward *= 2.0  # High reward for precision
+            elif params['distance_from_center'] <= 0.25 * track_width:
+                reward *= 1.5
+            else:
+                reward *= 0.5
+            
+            # Encourage lower speed in the corner
+            if 0.5 <= speed <= 1.0:
+                reward *= 1.5
+            else:
+                reward *= 0.8  # Penalize high speed (e.g., 2.0 m/s from log)
+            
+            # Encourage appropriate steering
+            if 15 <= abs(params['steering_angle']) <= 30:  # Sharp steering for corner
+                reward *= 1.5
+            else:
+                reward *= 0.8
+        
         if not params['all_wheels_on_track']:
                 try:
                     waypoints = params['waypoints']
