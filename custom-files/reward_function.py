@@ -473,8 +473,8 @@ class Reward:
         #     except (KeyError, IndexError, TypeError) as e:
         #         if self.verbose:
         #             print(f"Error accessing waypoints: {e}")
-        # if not params['all_wheels_on_track']:
-        #     reward = 1e-3
+        if not params['all_wheels_on_track']:
+            reward = 1e-3
         ####################### VERBOSE #######################
 
         if self.verbose == True:
