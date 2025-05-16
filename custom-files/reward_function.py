@@ -209,10 +209,14 @@ class Reward:
 
         def get_finish_reward():
             ## Incentive for finishing the lap in less steps ##
-            STANDARD_TIME = 17  # seconds (time that is easily done by model)
+            STANDARD_TIME = 15  # seconds (time that is easily done by model)
+            WEIGHT = 100
             if progress == 100:
-                finish_reward = max(1e-3, (STANDARD_TIME*15 - steps)**2)
-                if self.verbose == True:
+                if steps < STANDARD_TIME*15:
+                    finish_reward = (STANDARD_TIME*15 - steps)**2 * WEIGHT
+                else:
+                    finish_reward = 1e-3
+                if self.verbose:
                     print('progress is 100, steps: {}, finish_reward: {}'.format(steps, finish_reward))
             else:
                 finish_reward = 0
@@ -405,7 +409,7 @@ class Reward:
         track_width = params['track_width']
         # steering_angle = params['steering_angle']
         # waypoints = params['waypoints']
-        # closest_waypoints = params['closest_waypoints']
+        closest_waypoints = params['closest_waypoints']
         # is_offtrack = params['is_offtrack']
         # distance_from_center = params['distance_from_center']
         # is_left_of_center = params['is_left_of_center']
@@ -455,24 +459,26 @@ class Reward:
 
         ## Zero reward if off track ##
         if is_offtrack:
-            reward = 1e-3
-        
-        if not params['all_wheels_on_track']:
-                try:
-                    waypoints = params['waypoints']
-                    closest_waypoints = params['closest_waypoints']
-                    closest_index = closest_waypoints[0]  # First index is the closest waypoint
-                    waypoint_x = waypoints[closest_index][0]  # x-coordinate
-                    waypoint_y = waypoints[closest_index][1]  # y-coordinate
-            
-                    if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center']:
-                        reward = 1e-3
-                    if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center']:
-                        reward = 1e-3
-                except (KeyError, IndexError, TypeError) as e:
-                    if self.verbose:
-                        print(f"Error accessing waypoints: {e}")
+            reward = 1e-4
 
+        # Check if not all wheels are on track
+        # if not params['all_wheels_on_track']:
+        #     try:
+        #         waypoints = params['waypoints']
+        #         closest_waypoints = params['closest_waypoints']
+        #         closest_index = closest_waypoints[0]  # First index is the closest waypoint
+        #         waypoint_x = waypoints[closest_index][0]  # x-coordinate
+        #         waypoint_y = waypoints[closest_index][1]  # y-coordinate
+        #
+        #         if 4 <= waypoint_x <= 8 and -4 <= waypoint_y <= 2 and params['is_left_of_center']:
+        #             reward = 1e-3
+        #         if -6 <= waypoint_x <= 2 and 2 <= waypoint_y <= 6 and params['is_left_of_center']:
+        #             reward = 1e-3
+        #     except (KeyError, IndexError, TypeError) as e:
+        #         if self.verbose:
+        #             print(f"Error accessing waypoints: {e}")
+        # if not params['all_wheels_on_track']:
+        #     reward = 1e-3
         ####################### VERBOSE #######################
 
         if self.verbose == True:
