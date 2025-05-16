@@ -455,7 +455,7 @@ class Reward:
 
         ## Zero reward if off track ##
         if is_offtrack:
-            reward = 1e-3
+            reward = 1e-4
 
         # Check if not all wheels are on track
         # if not params['all_wheels_on_track']:
